@@ -1,0 +1,11 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>At-Tawakkul</title><link rel="stylesheet" href="style.css"></head><body><div id="nav"></div>
+<header class="hero"><div class="w"><img src="logo.jpg" alt="At-Tawakkul Food and Catering"><h1 class="shine" id="br">AT-TAWAKKUL</h1><p class="hs" id="tg">Food &amp; Catering &middot; Event Planning</p><div class="row"><a class="btn" href="menu.html">Order Food</a><a class="btn o" href="#how">How it works</a></div></div></header>
+<div class="mq"><div><span>&#10022; GREAT FOOD &#10022; BEAUTIFUL EVENTS &#10022; LASTING MEMORIES &#10022; WEDDINGS &#10022; BIRTHDAYS &#10022; NAMING CEREMONIES &#10022; DECORATION &#10022;&nbsp;</span><span>&#10022; GREAT FOOD &#10022; BEAUTIFUL EVENTS &#10022; LASTING MEMORIES &#10022; WEDDINGS &#10022; BIRTHDAYS &#10022; NAMING CEREMONIES &#10022; DECORATION &#10022;&nbsp;</span></div></div>
+<section id="newsS" hidden><div class="w"><div class="k">News Board</div><h2>Latest news</h2><div class="grid" id="nb"></div></div></section>
+<section id="how"><div class="w"><div class="k">How it works</div><h2>Order in 3 steps</h2><div class="grid"><div class="card"><h3>1. Choose</h3><p>Pick your food by the Congo or the Bag, and a decoration class.</p></div><div class="card"><h3>2. Checkout</h3><p>Sign in, enter your event date, time and venue, and see the exact price.</p></div><div class="card"><h3>3. Pay</h3><p>Pay by card or transfer. We confirm your order and get cooking.</p></div></div></div></section>
+<footer id="foot"></footer>
+<script type="module">
+import {$,h,getAll,getSettings,shell} from "./app.js";
+const cfg=await getSettings();shell(cfg);$("br").textContent=(cfg.brand||"At-Tawakkul").toUpperCase();if(cfg.tagline)$("tg").textContent=cfg.tagline;
+const n=(await getAll("news",[])).sort((a,b)=>b.at-a.at);if(n.length){$("newsS").hidden=false;n.forEach(x=>$("nb").append(h("div",{cls:"card"},h("small",{cls:"mut",text:new Date(x.at).toLocaleDateString()}),h("h3",{text:x.title}),h("p",{text:x.body}))))}
+</script></body></html>

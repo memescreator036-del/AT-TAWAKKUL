@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title><link rel="stylesheet" href="style.css"></head><body><div id="nav"></div>
+<section><div class="w"><div class="k">Admin</div><h2>Control panel</h2>
+<div id="auth" style="max-width:420px"></div>
+<div id="deny" hidden><p>This account is not allowed to open the admin panel.</p><button class="btn o s" id="o1" style="margin-top:12px">Sign out</button></div>
+<div id="panel" hidden><div class="chips" id="tabs"></div><div id="pane"></div><button class="btn o s" id="o2" style="margin-top:20px">Sign out</button></div></div></section>
+<footer id="foot"></footer>
+<script type="module">
+import {$,h,money,toast,getSettings,shell,authBox,A,S,T,auth,db,store,ADMINS,DEFAULT_FOODS,DEFAULT_DECOR} from "./app.js";
+const cfg=await getSettings();shell(cfg);
+let tab="orders",started=false,cf={...cfg};const D={orders:[],foods:[],decor:[],news:[]};
+$("o1").onclick=$("o2").onclick=()=>A.signOut(auth);
+authBox($("auth"),u=>{const ok=!!u&&ADMINS.includes((u.email||"").toLowerCase());$("auth").hidden=!!u;$("panel").hidden=!ok;$("deny").hidden=!(u&&!ok);if(ok&&!started){started=true;for(const n in D)S.onSnapshot(S.collection(db,n),s=>{D[n]=s.docs.map(d=>({id:d.id,...d.data()}));draw()})}});
+const upd=(c,id,o)=>S.updateDoc(S.doc(db,c,id),o);
+function inp(l,v,t,fn){const i=h("input",{type:t||"text",value:v==null?"":v});i.onchange=()=>fn(t=="number"?+i.value:i.value);return h("label",{text:l},i)}
+function area(l,v,fn){const i=h("textarea",{rows:4,value:v||""});i.onchange=()=>fn(i.value);return h("label",{text:l},i)}
+function photos(c,d){const ph=d.photos||[],w=h("div",{cls:"th2"});ph.forEach(u=>w.append(h("span",{},h("img",{src:u}),h("b",{text:"\u00D7",on:{click:()=>upd(c,d.id,{photos:ph.filter(x=>x!=u)})}}))));
+if(ph.length<4){const f=h("input",{type:"file",accept:"image/*",multiple:true});f.onchange=async()=>{const cur=[...ph];for(const file of [...f.files]){if(cur.length>=4)break;try{const r=T.ref(store,c+"/"+d.id+"/"+Date.now()+"-"+file.name);await T.uploadBytes(r,file);cur.push(await T.getDownloadURL(r))}catch(e){toast("Upload failed: "+e.message)}}upd(c,d.id,{photos:cur})};w.append(h("label",{cls:"up",text:"+ Add photos (max 4)"},f))}return w}
+function row(c,d,fields,extra){const r=h("div",{cls:"arow"});fields.forEach(x=>r.append(inp(x[0],d[x[1]],x[2],v=>upd(c,d.id,{[x[1]]:v}))));if(extra)extra(r);r.append(photos(c,d),h("div",{cls:"btns"},h("button",{cls:"btn s o",text:d.hidden?"Show":"Hide",on:{click:()=>upd(c,d.id,{hidden:!d.hidden})}}),h("button",{cls:"btn s o",text:"Delete",on:{click:()=>{if(confirm("Delete "+d.name+"?"))S.deleteDoc(S.doc(db,c,d.id))}}})));return r}
+async function load(c,arr){for(const x of arr){const {id,...o}=x;await S.addDoc(S.collection(db,c),o)}toast("Loaded")}
+function bd(s){return h("span",{cls:"bd"+(s=="confirmed"?" ok":(s=="refunded"||s=="declined")?" no":""),text:s})}
+function draw(){if($("panel").hidden)return;$("tabs").replaceChildren(...[["orders","Orders"],["foods","Foods & prices"],["decor","Decoration"],["news","News"],["cfg","Settings"]].map(x=>h("button",{cls:"chip"+(tab==x[0]?" on":""),text:x[1],on:{click:()=>{tab=x[0];draw()}}})));
+const p=$("pane");p.replaceChildren();
+if(tab=="orders"){if(!D.orders.length)p.append(h("p",{cls:"mut",text:"No orders yet."}));D.orders.sort((a,b)=>b.createdAt-a.createdAt).forEach(o=>{const c=h("div",{cls:"arow"},h("div",{},h("b",{text:o.name+" \u00B7 "+o.phone+" "}),bd(o.status)),h("small",{cls:"mut",text:o.email+" | "+o.type+" | "+o.date+" at "+o.time+" | "+o.venue+" | "+o.guests+" guests"}),
+h("table",{},o.items.map(i=>h("tr",{},h("td",{text:i.qty+" x 1 "+i.unit+" "+i.name}),h("td",{cls:"r",text:money(i.total)}))),o.decor?h("tr",{},h("td",{text:"Decoration: "+o.decor}),h("td",{cls:"r",text:money(o.decorPrice)})):null,o.delivery?h("tr",{},h("td",{text:"Delivery / service fee"}),h("td",{cls:"r",text:money(o.delivery)})):null,h("tr",{cls:"tot"},h("td",{text:"Total"}),h("td",{cls:"r",text:money(o.total)}))));
+if(o.notes)c.append(h("small",{text:"Notes: "+o.notes}));if(o.refundRequested)c.append(h("span",{cls:"bd no",text:"Refund requested"}));if(o.payRef)c.append(h("small",{cls:"mut",text:"Card ref: "+o.payRef}));
+c.append(o.receiptUrl?h("a",{href:o.receiptUrl,target:"_blank"},h("img",{src:o.receiptUrl,cls:"rc"})):h("small",{cls:"mut",text:o.payRef?"Paid by card":"No receipt yet"}));
+c.append(h("div",{cls:"btns"},[["confirmed","Confirm payment"],["refunded","Mark refunded"],["declined","Decline"]].map(x=>h("button",{cls:"btn s"+(x[0]=="confirmed"?"":" o"),text:x[1],on:{click:()=>upd("orders",o.id,{status:x[0]}).then(()=>toast("Updated"))}}))));p.append(c)})}
+else if(tab=="foods"){p.append(h("div",{cls:"btns"},D.foods.length?null:h("button",{cls:"btn s",text:"Load default menu",on:{click:()=>load("foods",DEFAULT_FOODS)}}),h("button",{cls:"btn s o",text:"+ Add food",on:{click:()=>S.addDoc(S.collection(db,"foods"),{name:"New food",cat:"Cooked Dishes",ingredients:"",congo:0,bag:0,photos:[],ord:D.foods.length})}})),h("p",{cls:"mut",text:"Set a price on 1 Congo and 1 Bag. Items with price 0 cannot be ordered."}));
+D.foods.sort((a,b)=>(a.ord||0)-(b.ord||0)).forEach(d=>p.append(row("foods",d,[["Food name","name"],["Category","cat"],["1 Congo price (\u20A6)","congo","number"],["1 Bag price (\u20A6)","bag","number"],["Sort number","ord","number"]],r=>r.append(area("Ingredients (shown on the menu)",d.ingredients,v=>upd("foods",d.id,{ingredients:v}))))))}
+else if(tab=="decor"){p.append(h("div",{cls:"btns"},D.decor.length?null:h("button",{cls:"btn s",text:"Load default classes",on:{click:()=>load("decor",DEFAULT_DECOR)}}),h("button",{cls:"btn s o",text:"+ Add class",on:{click:()=>S.addDoc(S.collection(db,"decor"),{name:"New Class",price:0,items:"",photos:[]})}})));
+D.decor.forEach(d=>p.append(row("decor",d,[["Class name","name"],["Price (\u20A6)","price","number"]],r=>r.append(area("What is included (one per line)",d.items,v=>upd("decor",d.id,{items:v}))))))}
+else if(tab=="news"){const ti=h("input",{placeholder:"Title"}),bo=h("textarea",{rows:3,placeholder:"News / announcement"});p.append(h("div",{cls:"arow"},ti,bo,h("button",{cls:"btn s",text:"Post news",on:{click:()=>{if(!ti.value)return;S.addDoc(S.collection(db,"news"),{title:ti.value,body:bo.value,at:Date.now()}).then(()=>toast("Posted"))}}})));
+D.news.forEach(n=>p.append(h("div",{cls:"arow"},h("b",{text:n.title}),h("div",{text:n.body}),h("div",{cls:"btns"},h("button",{cls:"btn s o",text:"Delete",on:{click:()=>S.deleteDoc(S.doc(db,"news",n.id))}})))))}
+else{const F=[["brand","Business name"],["tagline","Tagline"],["phone","Phone shown on the site"],["wa","WhatsApp number (e.g. 2348028252440)"],["bankName","Bank name"],["accNo","Account number"],["accName","Account name"],["payNote","Payment note (optional)"],["delivery","Delivery / service fee in \u20A6 (added at checkout)","number"],["note","Booking note shown on checkout"]];
+p.append(h("div",{cls:"arow"},h("b",{text:"Site & payment settings"}),F.map(x=>inp(x[1],cf[x[0]],x[2],v=>{cf[x[0]]=v;S.setDoc(S.doc(db,"settings","main"),cf).then(()=>toast("Saved"))}))))}}
+</script></body></html>

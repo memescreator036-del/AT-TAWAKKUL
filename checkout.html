@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>At-Tawakkul</title><link rel="stylesheet" href="style.css"></head><body><div id="nav"></div>
+<section><div class="w"><div class="k">Checkout</div><h2>Your order &amp; price</h2><div class="card" id="sum"></div>
+<div id="auth" style="margin-top:18px;max-width:420px"></div>
+<form id="f" class="card" hidden style="margin-top:18px;max-width:680px"><h3>Event details</h3><p class="mut" id="note"></p>
+<div class="two"><label>Your name<input id="n" required></label><label>Phone / WhatsApp<input id="p" type="tel" required></label></div>
+<label>Event type<select id="ty"><option>Wedding</option><option>Birthday</option><option>Naming Ceremony</option><option>Funeral</option><option>Corporate</option><option>Other</option></select></label>
+<div class="two"><label>Event date<input id="d" type="date" required></label><label>Time food is needed<input id="t" type="time" required></label></div>
+<div class="two"><label>Venue / address<input id="v" required></label><label>Number of guests<input id="g" type="number" min="1" required></label></div>
+<label>Anything else you want<textarea id="no" rows="3"></textarea></label>
+<button class="btn" type="submit" style="margin-top:16px">Place order &amp; pay</button></form></div></section>
+<section id="orders" hidden><div class="w"><div class="k">My orders</div><h2>Orders &amp; payments</h2><p class="mut" id="who"></p><div id="ol" style="margin-top:12px"></div><button class="btn o s" id="out" style="margin-top:14px">Sign out</button></div></section>
+<footer id="foot"></footer>
+<script type="module">
+import {$,h,money,toast,cart,getAll,getSettings,shell,authBox,lines,A,S,T,auth,db,store,PAYSTACK_PUBLIC_KEY,DEFAULT_FOODS,DEFAULT_DECOR} from "./app.js";
+const cfg=await getSettings();shell(cfg);if(cfg.note)$("note").textContent=cfg.note;
+const foods=await getAll("foods",DEFAULT_FOODS),decors=(await getAll("decor",DEFAULT_DECOR)).filter(d=>!d.hidden&&+d.price>0);
+let user=null,unsub=null;$("d").min=new Date().toISOString().slice(0,10);
+function calc(){const L=lines(foods).filter(l=>l.price>0),d=decors.find(x=>x.id==cart.dec()),dp=d?+d.price:0,dl=+cfg.delivery||0;return{L,d,dp,dl,total:L.reduce((s,l)=>s+l.total,0)+dp+dl}}
+function sum(){const c=calc(),el=$("sum");el.replaceChildren();if(!c.L.length){el.append(h("p",{text:"Your cart is empty. "}),h("a",{href:"menu.html",text:"Choose food"}));return}
+const sel=h("select",{},h("option",{value:"",text:"No decoration"}),decors.map(d=>h("option",{value:d.id,text:d.name+" - "+money(+d.price),selected:d.id==cart.dec()})));sel.onchange=()=>{cart.setDec(sel.value);sum()};
+el.append(h("table",{},h("tr",{},h("th",{text:"Item"}),h("th",{cls:"r",text:"Qty"}),h("th",{cls:"r",text:"Price"}),h("th",{cls:"r",text:"Amount"}),h("th")),
+c.L.map(l=>h("tr",{},h("td",{text:"1 "+l.unit+" "+l.name}),h("td",{cls:"r",text:l.qty}),h("td",{cls:"r",text:money(l.price)}),h("td",{cls:"r",text:money(l.total)}),h("td",{},h("a",{href:"#",text:"x",on:{click:e=>{e.preventDefault();const q=cart.get();delete q[l.key];cart.set(q);sum()}}})))),
+c.dp?h("tr",{},h("td",{text:"Decoration: "+c.d.name}),h("td"),h("td"),h("td",{cls:"r",text:money(c.dp)}),h("td")):null,
+c.dl?h("tr",{},h("td",{text:"Delivery / service fee"}),h("td"),h("td"),h("td",{cls:"r",text:money(c.dl)}),h("td")):null,
+h("tr",{cls:"tot"},h("td",{text:"TOTAL TO PAY"}),h("td"),h("td"),h("td",{cls:"r",text:money(c.total)}),h("td"))),h("label",{text:"Decoration"},sel))}
+authBox($("auth"),u=>{user=u;$("f").hidden=!u;$("orders").hidden=!u;if(unsub){unsub();unsub=null}if(u){$("n").value=u.displayName||"";$("who").textContent="Signed in as "+(u.email||u.displayName);unsub=S.onSnapshot(S.query(S.collection(db,"orders"),S.where("uid","==",u.uid)),s=>list(s.docs.map(d=>({id:d.id,...d.data()}))))}});
+$("out").onclick=()=>A.signOut(auth);
+$("f").onsubmit=async e=>{e.preventDefault();const c=calc();if(!c.L.length){toast("Your cart is empty");return}
+const o={uid:user.uid,email:user.email||"",name:$("n").value,phone:$("p").value,type:$("ty").value,date:$("d").value,time:$("t").value,venue:$("v").value,guests:+$("g").value,notes:$("no").value,items:c.L.map(l=>({name:l.name,unit:l.unit,qty:l.qty,price:l.price,total:l.total})),decor:c.d?c.d.name:"",decorPrice:c.dp,delivery:c.dl,total:c.total,status:"awaiting payment",receiptUrl:"",refundRequested:false,createdAt:Date.now()};
+try{await S.addDoc(S.collection(db,"orders"),o);cart.set({});cart.setDec("");sum();e.target.reset();toast("Order placed. Pay below to confirm it.");$("orders").scrollIntoView({behavior:"smooth"})}catch(x){toast("Could not place order: "+x.message)}};
+function payBox(o){const b=h("div",{cls:"pay"},h("b",{text:"Checkout - pay "+money(o.total)}));
+if(PAYSTACK_PUBLIC_KEY)b.append(h("button",{cls:"btn",text:"Pay "+money(o.total)+" by card",on:{click:()=>{const go=()=>window.PaystackPop.setup({key:PAYSTACK_PUBLIC_KEY,email:o.email,amount:o.total*100,currency:"NGN",ref:o.id+"-"+Date.now(),callback:function(r){S.updateDoc(S.doc(db,"orders",o.id),{status:"pending",payRef:r.reference,paidAt:Date.now()});toast("Payment received. Waiting for admin to confirm.")},onClose:function(){}}).openIframe();if(window.PaystackPop)go();else{const s=h("script",{src:"https://js.paystack.co/v1/inline.js"});s.onload=go;document.head.append(s)}}}}),h("small",{cls:"mut",text:"Or pay by bank transfer:"}));
+[["Bank",cfg.bankName],["Account number",cfg.accNo],["Account name",cfg.accName]].forEach(x=>{const r=h("div",{cls:"pr2"},h("small",{cls:"mut",text:x[0]}),h("span",{text:x[1]||"Not set yet"}));if(x[0]=="Account number"&&cfg.accNo)r.append(h("button",{cls:"btn s o",type:"button",text:"Copy",on:{click:()=>navigator.clipboard.writeText(cfg.accNo).then(()=>toast("Copied"))}}));b.append(r)});
+if(cfg.payNote)b.append(h("small",{cls:"mut",text:cfg.payNote}));
+const f=h("input",{type:"file",accept:"image/*"});f.onchange=async()=>{if(!f.files[0])return;try{const r=T.ref(store,"receipts/"+user.uid+"/"+o.id);await T.uploadBytes(r,f.files[0]);await S.updateDoc(S.doc(db,"orders",o.id),{receiptUrl:await T.getDownloadURL(r),status:"pending",paidAt:Date.now()});toast("Receipt sent. Waiting for admin to confirm.")}catch(x){toast("Upload failed: "+x.message)}};
+b.append(h("label",{cls:"up",text:"I have paid - upload receipt"},f));return b}
+function list(a){a.sort((x,y)=>y.createdAt-x.createdAt);$("ol").replaceChildren(...(a.length?a.map(o=>{const s=o.status,c=h("div",{cls:"arow"},h("div",{},h("b",{text:o.type+" \u00B7 "+o.date+" at "+o.time+" "}),h("span",{cls:"bd"+(s=="confirmed"?" ok":(s=="refunded"||s=="declined")?" no":""),text:s})),h("small",{cls:"mut",text:o.venue+" \u00B7 "+o.guests+" guests"}),
+h("table",{},o.items.map(i=>h("tr",{},h("td",{text:i.qty+" x 1 "+i.unit+" "+i.name}),h("td",{cls:"r",text:money(i.total)}))),o.decor?h("tr",{},h("td",{text:"Decoration: "+o.decor}),h("td",{cls:"r",text:money(o.decorPrice)})):null,o.delivery?h("tr",{},h("td",{text:"Delivery / service fee"}),h("td",{cls:"r",text:money(o.delivery)})):null,h("tr",{cls:"tot"},h("td",{text:"Total"}),h("td",{cls:"r",text:money(o.total)}))));
+if(o.refundRequested)c.append(h("span",{cls:"bd no",text:"Refund requested"}));
+if(s=="awaiting payment")c.append(payBox(o));
+if((s=="confirmed"||s=="pending")&&!o.refundRequested)c.append(h("button",{cls:"btn s o",text:"Request refund",on:{click:()=>S.updateDoc(S.doc(db,"orders",o.id),{refundRequested:true}).then(()=>toast("Refund requested"))}}));return c}):[h("p",{cls:"mut",text:"No orders yet."})]))}
+sum();
+</script></body></html>

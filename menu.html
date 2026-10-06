@@ -1,0 +1,19 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>At-Tawakkul</title><link rel="stylesheet" href="style.css"></head><body><div id="nav"></div>
+<section><div class="w"><div class="k">Menu</div><h2>Choose your food</h2><p class="sub">Pick 1 Congo or 1 Bag (or both). Prices are shown on every item.</p><div class="chips" id="chips"></div><div id="cats"></div></div></section>
+<section><div class="w"><div class="k">Decoration</div><h2>Decoration board</h2><p class="sub">Pick a decoration class for your event.</p><div class="grid" id="dg"></div></div></section>
+<div class="bar" id="bar"><b id="bt"></b><a class="btn s" href="checkout.html">Go to checkout</a></div>
+<footer id="foot"></footer>
+<script type="module">
+import {$,h,money,cart,getAll,getSettings,shell,slider,lines,DEFAULT_FOODS,DEFAULT_DECOR} from "./app.js";
+const cfg=await getSettings();shell(cfg);
+const foods=(await getAll("foods",DEFAULT_FOODS)).filter(f=>!f.hidden).sort((a,b)=>(a.ord||0)-(b.ord||0)),decors=(await getAll("decor",DEFAULT_DECOR)).filter(d=>!d.hidden);
+let cat="All";
+function bar(){const L=lines(foods).filter(l=>l.price>0),n=L.reduce((s,l)=>s+l.qty,0),t=L.reduce((s,l)=>s+l.total,0);$("bar").style.display=n?"flex":"none";$("bt").textContent=n+" item(s) \u00B7 "+money(t)}
+function unit(f,u){const price=+(u=="Bag"?f.bag:f.congo)||0,k=f.id+"|"+u;if(!price)return h("div",{},h("small",{text:"1 "+u}),h("small",{cls:"mut",text:"Price coming soon"}));
+const sp=h("span",{text:cart.get()[k]||0}),ch=d=>{const c=cart.get(),v=(c[k]||0)+d;if(v<0)return;if(v)c[k]=v;else delete c[k];cart.set(c);sp.textContent=v;bar()};
+return h("div",{},h("small",{text:"1 "+u+" \u00B7 "+money(price)}),h("div",{cls:"st"},h("button",{text:"-",on:{click:()=>ch(-1)}}),sp,h("button",{text:"+",on:{click:()=>ch(1)}})))}
+function draw(){const cs=[...new Set(foods.map(f=>f.cat))];$("chips").replaceChildren(...["All",...cs].map(c=>h("button",{cls:"chip"+(c==cat?" on":""),text:c,on:{click:()=>{cat=c;draw()}}})));
+$("cats").replaceChildren(...cs.filter(c=>cat=="All"||c==cat).map(c=>h("div",{cls:"cg"},h("h3",{text:c}),h("div",{cls:"grid"},foods.filter(f=>f.cat==c).map(f=>h("div",{cls:"it"},slider(f.photos),h("b",{text:f.name}),h("small",{text:f.ingredients?"Ingredients: "+f.ingredients:""}),h("div",{cls:"row2"},unit(f,"Congo"),unit(f,"Bag"))))))));bar()}
+function dec(){$("dg").replaceChildren(...decors.map(d=>{const on=cart.dec()==d.id;return h("div",{cls:"card"},slider(d.photos),h("h3",{text:d.name}),h("b",{text:money(+d.price)}),h("ul",{},(d.items||"").split("\n").filter(Boolean).map(t=>h("li",{text:t}))),h("button",{cls:"btn s",style:"margin-top:12px",text:on?"Selected":"Choose",on:{click:()=>{cart.setDec(on?"":d.id);dec()}}}))}))}
+draw();dec();
+</script></body></html>
